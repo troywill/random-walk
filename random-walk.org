@@ -86,7 +86,7 @@
 * [6/6] Create "Steps" model, controller, and views ( note: pedometer is reserved )
   1. [X] Generate steps scaffold
      #+BEGIN_SRC sh :tangle bin/generate-scaffold-steps.sh :shebang #!/bin/sh
-       rails generate scaffold pedometer user_id:integer steps:integer start_time:datetime finish_time:datetime goal:integer
+       rails generate scaffold steps user_id:integer steps:integer start_time:datetime finish_time:datetime goal:integer
      #+END_SRC
   2. [X] Relationship to User, validations
      file:../app/models/reading.rb
