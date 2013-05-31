@@ -1,0 +1,168 @@
+* [3/3] Create a new rails 4.0.0.rc1 application
+  1. [X] Create a new application
+     #+BEGIN_SRC sh
+       rails new pedometer --database postgresql
+     #+END_SRC
+  2. [X] Install Devise 
+        #+BEGIN_SRC sh
+          gem install devise --version 3.0.0.rc --no-ri --no-rdoc 
+        #+END_SRC
+  3. [X] Set up database
+     1. [X] [[file:../config/database.yml][config/database.yml]]
+        #+BEGIN_SRC conf
+          development:
+            adapter: postgresql
+            encoding: unicode
+            database: pedometer_development
+            pool: 5
+            username: troy
+            password: 
+          
+            # Connect on a TCP socket. Omitted by default since the client uses a
+            # domain socket that doesn't need configuration. Windows does not have
+            # domain sockets, so uncomment these lines.
+            #host: localhost
+          
+            # The TCP port the server listens on. Defaults to 5432.
+            # If your server runs on a different port number, change accordingly.
+            #port: 5432
+          
+            # Schema search path. The server defaults to $user,public
+            #schema_search_path: myapp,sharedapp,public
+          
+            # Minimum log levels, in increasing order:
+            #   debug5, debug4, debug3, debug2, debug1,
+            #   log, notice, warning, error, fatal, and panic
+            # Defaults to warning.
+            #min_messages: notice
+          
+          # Warning: The database defined as "test" will be erased and
+          # re-generated from your development database when you run "rake".
+          # Do not set this db to the same as development or production.
+          test:
+            adapter: postgresql
+            encoding: unicode
+            database: weight_test
+            pool: 5
+            username: troy
+            password: 
+          
+          production:
+            adapter: postgresql
+            encoding: unicode
+            database: pedometer_production
+            pool: 5
+            username: troy
+            password: 
+        #+END_SRC
+     2. [X] rake db:create
+* [6/7] Create a User authentication system with Devise < see [[file:/troy@usahealthscience.com:/home/troy/srv/devise/128/emacs/emacs/step-by-step-devise.org][step-by-step-devise.org]] >
+  1. [X] Enable `devise` gem in [[file:../Gemfile][Gemfile]]
+     #+BEGIN_SRC conf
+       gem 'devise', '~> 3.0.0.rc' # Wed May  8 18:03:54 PDT 2013, Rails 4.0.0.rc1
+     #+END_SRC
+  2. [X] bundle install
+  3. [X] Run the Devise gem install generator
+     #+BEGIN_SRC sh
+       rails generate devise:install
+     #+END_SRC
+  4. [X] Generate a User Model and generate routes for user activities
+     #+BEGIN_SRC sh
+       rails generate devise User
+     #+END_SRC
+  5. [ ] Run the devise_create_users database migration the was created by in the previous command
+     #+BEGIN_SRC sh
+       rake db:migrate
+     #+END_SRC
+  6. [X] (Re)start the Rails server
+     #+BEGIN_SRC 
+       kill -USR1 `cat ../tmp/pids/server.pid `; rails server --daemon
+     #+END_SRC
+** (Optional) create a user from console
+   #+BEGIN_SRC ruby
+     User.new(:email => "user@name.com", :password => 'password', :password_confirmation => 'password').save
+   #+END_SRC
+
+* [6/6] Create "Steps" model, controller, and views ( note: pedometer is reserved )
+  1. [X] Generate steps scaffold
+     #+BEGIN_SRC sh :tangle bin/generate-scaffold-steps.sh :shebang #!/bin/sh
+       rails generate scaffold pedometer user_id:integer steps:integer start_time:datetime finish_time:datetime goal:integer
+     #+END_SRC
+  2. [X] Relationship to User, validations
+     file:../app/models/reading.rb
+     #+BEGIN_SRC ruby
+       belongs_to :user
+       validates :user_id, :numericality => true
+       validates :weight, :numericality => true
+     #+END_SRC
+  3. [X] Default clothing in values in Model file:../db/migrate/ 2012..._created_readings.rb
+       #+BEGIN_SRC ruby
+         class CreateReadings < ActiveRecord::Migration
+           def change
+             create_table :readings do |t|
+               t.integer :user_id
+               t.decimal :weight
+               t.datetime :reading_time
+               t.decimal :clothing_wt, :default => 5
+               
+               t.timestamps
+             end
+           end
+         end
+       #+END_SRC
+  4. [X] Migrate the database, i.e. rake db:migrate
+  5. [X] file:../app/views/layouts/_navigation.html.erb
+     #+BEGIN_SRC html
+         <li><%= link_to "New reading", new_reading_path %></li>
+         <li><%= link_to "See all readings", readings_path %></li>
+     #+END_SRC
+  6. [X] [100%] User ID on new Reading
+     1. [X] Add user id to create method in readings controller file:../app/controllers/readings_controller.rb
+	#+BEGIN_SRC ruby
+          def create
+            @reading = Reading.new(reading_params)
+            @reading.user_id = current_user.id
+        #+END_SRC
+        - note that @user comes from application controller, identify_user method
+     2. [X] Remove user id field from file:../app/views/readings/_form.html.erb
+  
+  7. [X] Place sign up and sign out links on the home page file:../app/views/home/index.html.erb
+     #+BEGIN_SRC html
+       <h1>Home#index</h1>
+       <%= Time.now %>
+       <li><%= link_to "Sign Up", new_user_registration_path %></li>
+       <li><%= link_to "Sign In", new_user_session_path %></li>
+       <li><%= link_to "Sign Out", destroy_user_session_path, :method => 'delete' %></li>
+       
+       <% if user_signed_in? %>
+       You are signed in, current_user.id = <%= current_user.id %><br />
+       user_session.keys => <%= user_session.keys %>
+       <% end %>
+     #+END_SRC
+     - To verify if a user is signed in, use the following helper: user_signed_in?
+     - See https://github.com/plataformatec/devise#controller-filters-and-helpers
+     - file:../app/views/home/index.html.erb
+     - For the current signed-in user, this helper is available: current_user
+   
+* 6 AM to 6 PM
+  #+BEGIN_SRC ruby :tangle bin/steps.now.rb :shebang #!/usr/bin/env ruby
+
+    def seconds_since_midnight(time)
+      return time.hour * 3600 + time.min * 60 + time.sec
+    end
+
+    def steps_per_second
+      hours = 14
+      steps = 20000
+      return ( 20000.0 / ( 14.0 * 3600.0 ) )
+    end
+
+    def steps(time)
+      seconds_since_six = seconds_since_midnight(time) - 7.5 * 3600
+      step_rate = steps_per_second
+      steps = seconds_since_six * step_rate
+      puts steps
+    end
+
+    steps(Time.now)
+  #+END_SRC
