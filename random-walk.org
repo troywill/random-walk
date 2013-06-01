@@ -56,6 +56,23 @@
             password: 
         #+END_SRC
      2. [X] rake db:create
+  4. [X] Set the time zone file:../config/application.rb
+     #+BEGIN_SRC sh
+       rake -D time
+       rake time:zones:us
+     #+END_SRC
+     #+BEGIN_SRC ruby
+       config.time_zone = 'Pacific Time (US & Canada)'
+     #+END_SRC
+  2. [X] Create a “home” controller and a “home/index” page
+     #+BEGIN_SRC sh
+       rails generate controller home index --no-controller-specs --skip-stylesheets --skip-javascripts
+     #+END_SRC
+     - --skip-stylesheets --skip-javascripts to avoid cluttering our application with stylesheet and JavaScript files we don’t need.
+  3. [X] Set the default route to home/index in file:../config/routes.rb
+     #+BEGIN_SRC ruby
+       root 'home#index'
+     #+END_SRC
 * [6/7] Create a User authentication system with Devise < see [[file:/troy@usahealthscience.com:/home/troy/srv/devise/128/emacs/emacs/step-by-step-devise.org][step-by-step-devise.org]] >
   1. [X] Enable `devise` gem in [[file:../Gemfile][Gemfile]]
      #+BEGIN_SRC conf
@@ -83,40 +100,25 @@
      User.new(:email => "user@name.com", :password => 'password', :password_confirmation => 'password').save
    #+END_SRC
 
-* [6/6] Create "Steps" model, controller, and views ( note: pedometer is reserved )
+* [3/6] Create "Steps" model, controller, and views ( note: pedometer is reserved )
   1. [X] Generate steps scaffold
      #+BEGIN_SRC sh :tangle bin/generate-scaffold-steps.sh :shebang #!/bin/sh
-       rails generate scaffold steps user_id:integer steps:integer start_time:datetime finish_time:datetime goal:integer
+       rails generate scaffold steps user_id:integer steps:integer step_time:datetime
      #+END_SRC
-  2. [X] Relationship to User, validations
+  2. [ ] Relationship to User, validations
      file:../app/models/reading.rb
      #+BEGIN_SRC ruby
        belongs_to :user
        validates :user_id, :numericality => true
        validates :weight, :numericality => true
      #+END_SRC
-  3. [X] Default clothing in values in Model file:../db/migrate/ 2012..._created_readings.rb
-       #+BEGIN_SRC ruby
-         class CreateReadings < ActiveRecord::Migration
-           def change
-             create_table :readings do |t|
-               t.integer :user_id
-               t.decimal :weight
-               t.datetime :reading_time
-               t.decimal :clothing_wt, :default => 5
-               
-               t.timestamps
-             end
-           end
-         end
-       #+END_SRC
-  4. [X] Migrate the database, i.e. rake db:migrate
-  5. [X] file:../app/views/layouts/_navigation.html.erb
+  3. [ ] Migrate the database, i.e. rake db:migrate
+  4. [ ] file:../app/views/layouts/_navigation.html.erb
      #+BEGIN_SRC html
          <li><%= link_to "New reading", new_reading_path %></li>
          <li><%= link_to "See all readings", readings_path %></li>
      #+END_SRC
-  6. [X] [100%] User ID on new Reading
+  5. [X] [100%] User ID on new Reading
      1. [X] Add user id to create method in readings controller file:../app/controllers/readings_controller.rb
 	#+BEGIN_SRC ruby
           def create
@@ -126,7 +128,7 @@
         - note that @user comes from application controller, identify_user method
      2. [X] Remove user id field from file:../app/views/readings/_form.html.erb
   
-  7. [X] Place sign up and sign out links on the home page file:../app/views/home/index.html.erb
+  6. [X] Place sign up and sign out links on the home page file:../app/views/home/index.html.erb
      #+BEGIN_SRC html
        <h1>Home#index</h1>
        <%= Time.now %>
@@ -144,6 +146,68 @@
      - file:../app/views/home/index.html.erb
      - For the current signed-in user, this helper is available: current_user
    
+* TODO Create Goal model, controller, and views
+  1. [X] Generate scaffold
+     #+BEGIN_SRC sh :tangle bin/generate-scaffold-goal.sh :shebang #!/bin/sh
+       rails generate scaffold goal user_id:integer \
+           goal_steps:integer \
+           goal_finish_time:datetime \
+           goal_start_time:datetime
+     #+END_SRC
+  2. [X] Relationship between Goal and User file:../app/models/goal.rb
+     #+BEGIN_SRC ruby
+       class Setting < ActiveRecord::Base
+         belongs_to :user
+       ...
+     #+END_SRC
+  3. [ ] Relationship between User and Goal file:../app/models/user.rb
+     #+BEGIN_SRC ruby
+       class User < ActiveRecord::Base
+         has_one :setting
+         has_many :goals
+     #+END_SRC
+  4. [ ] Default values file:../db/migrate/ 2013xxx_create_goals.rb
+     #+BEGIN_SRC ruby
+       t.integer :goal_loss_rate, :default => 0
+     #+END_SRC
+  5. [ ] Validations file:../app/models/goal.rb
+     #+BEGIN_SRC ruby
+       validates :user_id, :presence => true, :numericality => true
+       validates :goal_loss_rate, :presence => true, :numericality => true
+     #+END_SRC
+  6. [ ] Migrate database
+  7. [ ] user_id file:../app/controllers/goals_controller.rb
+     #+BEGIN_SRC ruby
+       # POST /goals
+       # POST /goals.json
+       def create
+         @goal = Goal.new(goal_params)
+         @goal.user_id = current_user.id # current_user provided by Devise
+     #+END_SRC
+  8. [ ] update form file:../app/views/goals/_form.html.erb
+  9. [ ] navigation file:../app/views/layouts/_navigation.html.erb
+     #+BEGIN_SRC html
+       <li><%= link_to "Goals", goals_path %></li>
+     #+END_SRC
+* TODO Write last class functions in step model
+  1. [X] goal_now in Step model file:../app/models/goal.rb
+     #+BEGIN_SRC ruby
+
+  def self.goal_now(user)
+    goal = Goal.where(:user_id => user.id).last
+    total_duration = goal.goal_finish_time - goal.goal_start_time
+    elapsed_time = Time.now - goal.goal_start_time
+    #         goal.goal_steps
+    steps_now_goal_now = goal.goal_steps * ( elapsed_time / total_duration )
+  end
+     #+END_SRC
+  2. [ ] file:../app/views/home/index.html.erb
+     <h1>Goal now <%= number_with_precision(Goal.goal_now(current_user), :precision => 3)%></h1>
+     <h1>Goal now <%= Goal.goal_now(current_user) %></h1>
+
+
+* TODO Home/index
+
 * 6 AM to 6 PM
   #+BEGIN_SRC ruby :tangle bin/steps.now.rb :shebang #!/usr/bin/env ruby
 
